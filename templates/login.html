@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sign in — Plex Stats</title>
+  <link rel="stylesheet" href="/static/css/style.css" />
+  <style>
+    .login-wrap {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    .login-card {
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 40px 36px;
+      max-width: 380px;
+      width: 100%;
+      text-align: center;
+    }
+    .login-card .brand-dot {
+      width: 10px; height: 10px; border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 12px var(--accent);
+      display: inline-block;
+      margin-bottom: 14px;
+    }
+    .login-card h1 { font-size: 18px; margin: 0 0 6px; }
+    .login-card p.sub { color: var(--text-dim); font-size: 13px; margin: 0 0 28px; }
+    .plex-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      width: 100%;
+      background: var(--accent);
+      color: #14161a;
+      border: none;
+      border-radius: 8px;
+      padding: 13px 20px;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .plex-btn:hover { filter: brightness(1.08); }
+    .plex-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+    .login-status {
+      margin-top: 18px;
+      font-size: 12.5px;
+      color: var(--text-dim);
+      min-height: 18px;
+    }
+    .login-status.error { color: #e08080; }
+    .login-status.success { color: var(--good); }
+    .login-link {
+      display: inline-block;
+      margin-top: 14px;
+      font-size: 12.5px;
+      color: var(--accent);
+    }
+  </style>
+</head>
+<body>
+  <div class="login-wrap">
+    <div class="login-card">
+      <span class="brand-dot"></span>
+      <h1>Plex Stats</h1>
+      <p class="sub">Sign in with your Plex account to continue.</p>
+      <button class="plex-btn" id="plexSignInBtn">Sign in with Plex</button>
+      <p class="login-status" id="loginStatus"></p>
+    </div>
+  </div>
+
+  <script>
+    const btn = document.getElementById("plexSignInBtn");
+    const statusEl = document.getElementById("loginStatus");
+    let pollTimer = null;
+
+    function setStatus(text, kind) {
+      statusEl.textContent = text;
+      statusEl.className = "login-status" + (kind ? ` ${kind}` : "");
+    }
+
+    async function poll(loginId) {
+      try {
+        const res = await fetch(`/login/poll?login_id=${encodeURIComponent(loginId)}`);
+        const data = await res.json();
+
+        if (data.status === "success") {
+          clearInterval(pollTimer);
+          setStatus("Signed in — redirecting…", "success");
+          window.location.href = "/";
+          return;
+        }
+        if (data.status === "expired") {
+          clearInterval(pollTimer);
+          setStatus("That login link expired. Try again.", "error");
+          btn.disabled = false;
+          btn.textContent = "Sign in with Plex";
+          return;
+        }
+        if (data.status === "no_access") {
+          clearInterval(pollTimer);
+          setStatus(data.error || "This Plex account doesn't have access to this server.", "error");
+          btn.disabled = false;
+          btn.textContent = "Sign in with Plex";
+          return;
+        }
+        if (data.status === "unknown") {
+          clearInterval(pollTimer);
+          setStatus("Something went wrong. Try again.", "error");
+          btn.disabled = false;
+          btn.textContent = "Sign in with Plex";
+          return;
+        }
+        // status === "pending" -- keep polling
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    btn.addEventListener("click", async () => {
+      btn.disabled = true;
+      btn.textContent = "Waiting for Plex…";
+      setStatus("");
+
+      try {
+        const res = await fetch("/login/start", { method: "POST" });
+        const data = await res.json();
+        if (!data.ok) {
+          setStatus("Couldn't start login. Try again.", "error");
+          btn.disabled = false;
+          btn.textContent = "Sign in with Plex";
+          return;
+        }
+
+        window.open(data.url, "_blank", "noopener");
+        setStatus("Complete sign-in in the new tab, then come back here.");
+
+        pollTimer = setInterval(() => poll(data.login_id), 2000);
+      } catch (e) {
+        console.error(e);
+        setStatus("Couldn't start login. Try again.", "error");
+        btn.disabled = false;
+        btn.textContent = "Sign in with Plex";
+      }
+    });
+  </script>
+</body>
+</html>
