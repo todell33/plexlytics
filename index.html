@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Plexlytics -- cloud login test</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 480px; margin: 60px auto; padding: 0 20px; }
+    button { padding: 10px 16px; font-size: 15px; cursor: pointer; }
+    pre { background: #f4f4f4; padding: 12px; border-radius: 6px; white-space: pre-wrap; word-break: break-word; }
+  </style>
+</head>
+<body>
+  <h1>Plexlytics cloud login test</h1>
+  <p>This page only tests the login -> Supabase -> backend loop. It is not the real dashboard.</p>
+
+  <button id="login-btn">Log in with Plex</button>
+  <button id="whoami-btn" disabled>Call /api/public/whoami</button>
+
+  <pre id="output">Not logged in yet.</pre>
+
+  <script type="module">
+    import { loginWithPlex, callBackend } from "./frontend_auth.js";
+
+    const output = document.getElementById("output");
+    const loginBtn = document.getElementById("login-btn");
+    const whoamiBtn = document.getElementById("whoami-btn");
+
+    loginBtn.addEventListener("click", async () => {
+      output.textContent = "Opening Plex login in a new tab -- authorize there, then come back here.";
+      try {
+        const result = await loginWithPlex();
+        if (!result.linked) {
+          output.textContent =
+            "Logged in, but no server is linked to this account yet.\n" +
+            "Go to your local Plexlytics Settings > Cloud access and click " +
+            '"Link to Plexlytics cloud" first, then try again.';
+          return;
+        }
+        output.textContent = "Logged in and linked.\nBackend URL: " + result.backendUrl;
+        whoamiBtn.disabled = false;
+      } catch (err) {
+        output.textContent = "Login failed: " + err.message;
+      }
+    });
+
+    whoamiBtn.addEventListener("click", async () => {
+      output.textContent = "Calling your backend...";
+      try {
+        const res = await callBackend("/api/public/whoami");
+        const data = await res.json();
+        output.textContent = "Backend responded:\n" + JSON.stringify(data, null, 2);
+      } catch (err) {
+        output.textContent = "Call failed: " + err.message;
+      }
+    });
+  </script>
+</body>
+</html>
