@@ -38,11 +38,17 @@ async function startPlexLogin() {
   });
   const pin = await pinRes.json();
 
-  const authUrl = new URL("https://app.plex.tv/auth#");
-  authUrl.searchParams.set("clientID", clientId);
-  authUrl.searchParams.set("code", pin.code);
-  authUrl.searchParams.set("context[device][product]", "Plexlytics");
-  window.open(authUrl.toString(), "_blank");
+  const authParams = new URLSearchParams({
+    clientID: clientId,
+    code: pin.code,
+    "context[device][product]": "Plexlytics",
+  });
+  // Plex's login page is a single-page app that reads its parameters from
+  // the URL fragment (after #), not the normal query string -- building
+  // this with URL.searchParams would put them in the wrong part of the
+  // URL and the page would never see them.
+  const authUrl = `https://app.plex.tv/auth#?${authParams.toString()}`;
+  window.open(authUrl, "_blank");
 
   return pollForToken(pin.id, clientId);
 }
